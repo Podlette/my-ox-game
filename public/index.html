@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>⚡ โคตร OX ลื่นไหล - ออนไลน์แยกห้อง! ⚡</title>
+    <!-- ดึงตัวเชื่อมต่อ Socket.io มาใช้งาน -->
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #1a1a1a; color: #fff; padding-top: 20px; }
+        
+        /* กล่องล็อบบี้ใส่รหัสห้อง */
+        #lobby { margin-top: 50px; background: #222; padding: 30px; display: inline-block; border-radius: 10px; }
+        input { padding: 10px; font-size: 1rem; border-radius: 5px; border: none; text-align: center; }
+        
+        /* ซ่อนกระดานเกมไว้ก่อนตอนแรก */
+        #game { display: none; }
+        
+        .board { display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; justify-content: center; margin-top: 20px; }
+        .cell { width: 100px; height: 100px; background: #333; font-size: 2.5rem; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 10px; font-weight: bold; transition: 0.2s; user-select: none; }
+        .cell:hover { background: #444; }
+        .cell.fading { opacity: 0.3; color: #ff5555; } 
+        
+        button { padding: 10px 20px; font-size: 1rem; background: #00bcd4; border: none; color: white; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        button:hover { background: #0097a7; }
+    </style>
+</head>
+<body>
+    <h1>⚡ Ultimate Fading OX (Multiplayer) ⚡</h1>
+    
+    <!-- หน้าล็อบบี้ -->
+    <div id="lobby">
+        <h3>ใส่ชื่อห้องที่ต้องการสร้าง หรือเข้าร่วม</h3>
+        <input type="text" id="roomInput" placeholder="เช่น room123" />
+        <br><br>
+        <button onclick="joinRoom()">เข้าห้องเล่น</button>
+    </div>
+
+    <!-- หน้าเกมเพลย์ -->
+    <div id="game">
+        <h2 id="roomDisplay" style="color: #00bcd4;"></h2>
+        <h3 id="status">กำลังเชื่อมต่อ...</h3>
+        <div class="board" id="board"></div>
+        <button onclick="requestReset()" style="margin-top: 30px;">เริ่มเกมใหม่รอบถัดไป</button>
+    </div>
+
+    <script>
+        const socket = io(); // เชื่อมต่อกับเซิร์ฟเวอร์อัตโนมัติ
+        let myRole = null;
+        const boardDiv = document.getElementById('board');
+        const statusH3 = document.getElementById('status');
+
+        // ฟังก์ชันเมื่อกดเข้าห้อง
+        function joinRoom() {
+            const roomCode = document.getElementById('roomInput').value;
+            if (!roomCode) {
+                alert("กรุณาใส่ชื่อห้องก่อนครับ!");
+                return;
+            }
+            
+            // สลับหน้าจอจากล็อบบี้ ไปหน้ากระดานเกม
+            document.getElementById('lobby').style.display = 'none';
+            document.getElementById('game').style.display = 'block';
+            document.getElementById('roomDisplay').innerText = "ห้อง: " + roomCode;
+
+            // บอกเซิร์ฟเวอร์ว่าขอเข้าห้องนี้
+            socket.emit('joinRoom', roomCode);
+            createBoard();
+        }
+
+        // สร้างกระดานเปล่ารอ
+        function createBoard() {
+            boardDiv.innerHTML = '';
+            for (let i = 0; i < 9; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.id = 'cell-' + i;
+                cell.addEventListener('click', () => {
+                    if (myRole !== 'ผู้ชม') socket.emit('move', i);
+                });
+                boardDiv.appendChild(cell);
+            }
+        }
+
+        // --- รับข้อมูลอัปเดตจากเซิร์ฟเวอร์ ---
+        socket.on('init', (data) => {
+            myRole = data.role;
+            statusH3.innerText = "คุณคือผู้เล่น: " + myRole;
+        });
+
+        socket.on('update', (data) => {
+            // อัปเดตกระดาน
+            data.board.forEach((val, idx) => {
+                const cell = document.getElementById('cell-' + idx);
+                cell.innerText = val || '';
+                cell.className = 'cell';
+
+                if (data.history) {
+                    if (data.history.X.length === 3 && data.history.X[0] === idx) cell.classList.add('fading');
+                    if (data.history.O.length === 3 && data.history.O[0] === idx) cell.classList.add('fading');
+                }
+            });
+
+            // อัปเดตสถานะเกม
+            if (data.winner) {
+                statusH3.innerText = `🎉 ผู้ชนะคือ ${data.winner}! 🎉`;
+            } else {
+                statusH3.innerText = `คุณคือ ${myRole} | ตอนนี้เป็นตาของฝั่ง: ${data.turns} ${data.turns === myRole ? '(ตาคุณแล้ว!)' : ''}`;
+            }
+        });
+
+        function requestReset() {
+            if (myRole !== 'ผู้ชม') {
+                socket.emit('reset');
+            }
+        }
+    </script>
+</body>
+</html>
