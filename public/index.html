@@ -44,7 +44,7 @@
     </div>
 
     <script>
-        const socket = io(); // เชื่อมต่อกับเซิร์ฟเวอร์อัตโนมัติ
+        const socket = io("https://my-ox-game.onrender.com");
         let myRole = null;
         const boardDiv = document.getElementById('board');
         const statusH3 = document.getElementById('status');
